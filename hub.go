@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
+	"context"
+
+	"github.com/fwznbg/go-multiplayer-tictactoe/components"
 )
 
 type Hub struct {
@@ -34,32 +34,42 @@ func (h *Hub) Run() {
 					player.Role = PlayerRoleO
 					room.PlayerO = player
 				} else {
-					h.Broadcast <- &Message{
-						Type:    MessageError,
-						RoomID:  player.RoomID,
-						Content: "Room is full",
-					}
+					// TODO: change the broadcast to return html
+					// h.Broadcast <- &Message{
+					// 	Type:    MessageError,
+					// 	RoomID:  player.RoomID,
+					// 	Content: "Room is full",
+					// }
 				}
-
-				h.Broadcast <- &Message{
-					Type:    MessageInfo,
-					RoomID:  player.RoomID,
-					Content: fmt.Sprintf("Player %s joined", player.GetRole()),
-				}
+				// TODO: change the broadcast to return html
+				// h.Broadcast <- &Message{
+				// 	Type:    MessageInfo,
+				// 	RoomID:  player.RoomID,
+				// 	Content: fmt.Sprintf("Player %s joined", player.GetRole()),
+				// }
 
 				if room.CheckIsFull() {
-					room.Status = StatusPlaying
-					roomJson, err := json.Marshal(room)
-					if err != nil {
-						log.Println("Failed to encode json ", err)
-						return
+					if room.Status == StatusWaiting {
+						room.Status = StatusPlaying
+					}
+					// roomJson, err := json.Marshal(room)
+					// if err != nil {
+					// 	log.Println("Failed to encode json ", err)
+					// 	return
+					// }
+
+					boardWriter := NewBytesWriter()
+					components.Board(room.Board).Render(context.Background(), boardWriter)
+					h.Broadcast <- &Message{
+						RoomID:  player.RoomID,
+						Content: boardWriter.Bytes(),
 					}
 
-					h.Broadcast <- &Message{
-						Type:    MessageGameUpdate,
-						RoomID:  player.RoomID,
-						Content: string(roomJson),
-					}
+					// h.Broadcast <- &Message{
+					// 	Type:    MessageGameUpdate,
+					// 	RoomID:  player.RoomID,
+					// 	Content: string(roomJson),
+					// }
 				}
 			}
 		case player := <-h.Unregister:
@@ -72,11 +82,12 @@ func (h *Hub) Run() {
 				if room.CheckIsEmpty() {
 					delete(h.Room, room.ID)
 				} else {
-					h.Broadcast <- &Message{
-						Type:    MessageInfo,
-						RoomID:  room.ID,
-						Content: fmt.Sprintf("Player %s is leaving the room", player.GetRole()),
-					}
+					// TODO: change this to return html
+					// h.Broadcast <- &Message{
+					// 	Type:    MessageInfo,
+					// 	RoomID:  room.ID,
+					// 	Content: fmt.Sprintf("Player %s is leaving the room", player.GetRole()),
+					// }
 					room.Status = StatusWaiting
 				}
 

@@ -34,7 +34,7 @@ func lobby() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex items-center justify-center\"><input id=\"roomCode\" type=\"text\" placeholder=\"Type room code\" class=\"p-2 text-gray-900\" minlength=\"6\" maxlength=\"6\"> <button onclick=\"handleJoin()\" class=\"ml-5 p-2 px-6 bg-gray-500 hover:bg-gray-700\">Join</button></div><p class=\"font-bold\">or</p><button class=\"ml-5 p-2 px-6 bg-gray-500 hover:bg-gray-700\">Create room</button>")
+		templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

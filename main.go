@@ -11,11 +11,14 @@ import (
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-  components.Home().Render(context.Background(), w)
+	components.Home().Render(context.Background(), w)
 }
 
 func roomHandler(w http.ResponseWriter, r *http.Request) {
-	components.Room().Render(context.Background(), w)
+	vars := mux.Vars(r)
+	roomCode := vars["room"]
+
+	components.Room(roomCode).Render(context.Background(), w)
 }
 
 func createRoomHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {

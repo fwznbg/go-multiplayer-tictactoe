@@ -1,12 +1,13 @@
 package components
 
-templ Layout(script templ.Component){
+templ Layout(script templ.ComponentScript){
 <!DOCTYPE html>
 <html>
   <head>
-    <!-- <script src="https://unpkg.com/htmx.org@1.9.11"></script> -->
+    <script src="https://unpkg.com/htmx.org@1.9.11"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.11/dist/ext/ws.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    @script()
+    @script
   </head>
   <body
     class="h-screen w-screen bg-gray-900 text-gray-50 flex items-center justify-center flex-col space-y-5"
