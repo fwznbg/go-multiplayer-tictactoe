@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -123,7 +124,12 @@ func (p *Player) ReadMessage(h *Hub) {
 			return
 		}
 
-		winner := p.MakeMove(h, playerMove.X, playerMove.Y)
+		winner, err := p.MakeMove(h, playerMove.X, playerMove.Y)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
 		h.Room[p.RoomID].Winner = winner
 		jsonRoom, err := json.Marshal(h.Room[p.RoomID])
 		if err != nil {
@@ -159,7 +165,7 @@ func (p Player) GetRole() string {
 	return role
 }
 
-func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
+func (p *Player) MakeMove(hub *Hub, x, y int) (*Player, error) {
 	room := hub.Room[p.RoomID]
 
 	if room.Status != StatusPlaying {
@@ -169,7 +175,7 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 			Content: "The game already ended",
 		}
 		p.Conn.WriteJSON(msg)
-		return nil
+		return nil, errors.New("game ended")
 	}
 
 	if p.Role == PlayerRoleX && room.Turn != TurnX {
@@ -179,7 +185,7 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 			Content: "Not your move",
 		}
 		p.Conn.WriteJSON(msg)
-		return nil
+		return nil, errors.New("not your move")
 	} else if p.Role == PlayerRoleO && room.Turn != TurnO {
 		msg := &Message{
 			Type:    MessageError,
@@ -187,7 +193,7 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 			Content: "Not your move",
 		}
 		p.Conn.WriteJSON(msg)
-		return nil
+		return nil, errors.New("not your move")
 	}
 
 	if x < 0 || y < 0 || x > 2 || y > 2 {
@@ -197,7 +203,7 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 			Content: "Invalid move",
 		}
 		p.Conn.WriteJSON(msg)
-		return nil
+		return nil, errors.New("invalid move")
 	}
 
 	if room.Board[x][y] != "" {
@@ -207,7 +213,7 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 			Content: "Point already occupied",
 		}
 		p.Conn.WriteJSON(msg)
-		return nil
+		return nil, errors.New("already occupied")
 	}
 
 	room.Board[x][y] = p.GetRole()
@@ -217,5 +223,5 @@ func (p *Player) MakeMove(hub *Hub, x, y int) *Player {
 	if winner != nil {
 		room.Status = StatusEnded
 	}
-	return winner
+	return winner, nil
 }

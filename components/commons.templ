@@ -1,13 +1,17 @@
-<!doctype html>
+package components
+
+templ Layout(script templ.Component){
+<!DOCTYPE html>
 <html>
   <head>
+    <!-- <script src="https://unpkg.com/htmx.org@1.9.11"></script> -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-    </script>
+    @script()
   </head>
   <body
     class="h-screen w-screen bg-gray-900 text-gray-50 flex items-center justify-center flex-col space-y-5"
   >
-    <main id="board"></main>
+  {children...}
   </body>
 </html>
+}

@@ -1,0 +1,50 @@
+package components
+
+script gameplay(){
+      const roomId = window.location.pathname;
+      const socket = new WebSocket(`ws://localhost:8080/api${roomId}`);
+
+      const sendMove = (x, y) => {
+        socket.send(JSON.stringify({ x: x, y: y }));
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 0) {
+          // console.log(data.content);
+        } else if ([2, 3].includes(data.type)) {
+          const gameState = JSON.parse(data.content);
+          const board = gameState.board;
+          let boardElem = "";
+
+          for (let i = 0; i < board.length; i++) {
+
+            boardElem += `
+              <div class="flex items-center justify-center border-2 text-gray-50">
+                <button onclick="sendMove(${i}, ${0})" class="bg-gray-800 w-16 h-16" >${
+                  board[i][0]
+                }</button>
+                <button onclick="sendMove(${i}, ${1})" class="bg-gray-800 w-16 h-16 border-x-2" >${
+                  board[i][1]
+                }</button>
+                <button onclick="sendMove(${i}, ${2})" class="bg-gray-800 w-16 h-16">${
+                  board[i][2]
+                }</button>
+              </div>
+            `;
+          }
+
+          document.getElementById("board").innerHTML = boardElem;
+        }
+        if (data.type === 3) {
+          // game ended
+        }
+        console.log(data);
+      };
+}
+
+templ Room(){
+    @Layout(gameplay()){
+    <main id="board"></main>
+    }
+}

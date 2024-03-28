@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+
+	"github.com/fwznbg/go-multiplayer-tictactoe/components"
+	"github.com/gorilla/mux"
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "templates/index.html")
+  components.Home().Render(context.Background(), w)
 }
 
 func roomHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "templates/room.html")
+	components.Room().Render(context.Background(), w)
 }
 
 func createRoomHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
