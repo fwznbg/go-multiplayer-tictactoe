@@ -1,17 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/fwznbg/go-multiplayer-tictactoe/components"
 	"github.com/gorilla/websocket"
 )
 
@@ -19,15 +16,9 @@ type PlayerRoleType int
 type MessageType int
 
 const (
-	PlayerRoleX PlayerRoleType = iota
+	PlayerRoleUnassigned PlayerRoleType = iota
+	PlayerRoleX
 	PlayerRoleO
-)
-
-const (
-	MessageInfo MessageType = iota
-	MessageError
-	MessageGameEnded
-	MessageGameUpdate
 )
 
 type Player struct {
@@ -38,14 +29,8 @@ type Player struct {
 }
 
 type Message struct {
-	// Type    MessageType `json:"type"`
 	RoomID  string `json:"roomId"`
 	Content []byte `json:"content"`
-}
-
-type PlayerMove struct {
-	X int `json:"x"`
-	Y int `json:"y"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -72,10 +57,10 @@ func HandleWs(roomID string, h *Hub, w http.ResponseWriter, r *http.Request) {
 			Conn:    conn,
 			RoomID:  room.ID,
 			Message: make(chan *Message),
+			Role:    PlayerRoleUnassigned,
 		}
-
+		log.Println("registering", room.ID)
 		h.Register <- newPlayer
-		log.Println("registering player to room ", room.ID)
 		// todo
 		go newPlayer.WriteMessage()
 		newPlayer.ReadMessage(h)
@@ -110,7 +95,6 @@ func (p *Player) ReadMessage(h *Hub) {
 	}()
 
 	for {
-		fmt.Println("status ", h.Room[p.RoomID].Status)
 		_, msg, err := p.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway) {
@@ -119,67 +103,65 @@ func (p *Player) ReadMessage(h *Hub) {
 			}
 		}
 		var htmxReq HTMXRequest
-		fmt.Println(htmxReq.Move)
 		if err := json.Unmarshal(msg, &htmxReq); err != nil {
-			// TODO: change to html
-			// message := &Message{
-			// 	RoomID:  p.RoomID,
-			// 	Type:    MessageError,
-			// 	Content: "Failed to make move, error unmarshalling",
-			// }
-			// p.Conn.WriteJSON(message)
-			fmt.Println(err)
+			log.Println(err)
+
+			p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Failed to make move, error unmarshalling", true))
+
 			return
 		}
 
 		x, y, found := strings.Cut(htmxReq.Move, ";")
 		if !found {
-			// TODO: return html
+			log.Println("Can't find tile coordinate")
+
+			p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Failed to parse tile coordinate", true))
+
 			return
 		}
 
 		intX, err := strconv.Atoi(x)
 		if err != nil {
-			// TODO: return html
+			log.Println("Failed to convert x coordinate to int")
+
+			p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Failed to convert x coordinate to int", true))
+
 			return
 		}
+
 		intY, err := strconv.Atoi(y)
 		if err != nil {
-			// TODO: return html
+			log.Println("Failed to convert y coordinate to int")
+
+			p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Failed to convert y coordinate to int", true))
+
 			return
 		}
+
 		winner, err := p.MakeMove(h, intX, intY)
 		if err != nil {
 			log.Println(err)
-			return
+		} else {
+			currentRoom := h.Room[p.RoomID]
+			currentRoom.Winner = winner
+
+			if winner != nil {
+				currentRoom.Turn = PlayerRoleUnassigned
+			}
+
+			for _, player := range []*Player{currentRoom.PlayerX, currentRoom.PlayerO} {
+				if winner != nil {
+					if winner.Role == player.Role {
+						player.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("You win :D", false))
+					} else {
+						player.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("You lose :(", false))
+					}
+
+				}
+				player.Conn.WriteMessage(websocket.TextMessage, GetBoardComponent(currentRoom.Board, int(player.Role), int(currentRoom.Turn)))
+			}
 		}
 
-		h.Room[p.RoomID].Winner = winner
-		// jsonRoom, err := json.Marshal(h.Room[p.RoomID])
-		// if err != nil {
-		// 	// TODO: change to html
-		// 	message := &Message{
-		// 		RoomID:  p.RoomID,
-		// 		Type:    MessageError,
-		// 		Content: "Failed to marshal room",
-		// 	}
-		// 	p.Conn.WriteJSON(message)
-		// 	return
-		// }
-		boardWriter := NewBytesWriter()
-		components.Board(h.Room[p.RoomID].Board).Render(context.Background(), boardWriter)
-		message := &Message{
-			RoomID:  p.RoomID,
-			Content: boardWriter.Bytes(),
-		}
-
-		// if winner == nil {
-		// 	message.Type = MessageGameUpdate
-		// } else {
-		// 	message.Type = MessageGameEnded
-		// }
-
-		h.Broadcast <- message
 	}
 }
 
@@ -196,55 +178,18 @@ func (p *Player) MakeMove(hub *Hub, x, y int) (*Player, error) {
 	room := hub.Room[p.RoomID]
 
 	if room.Status != StatusPlaying {
-		// TODO: return html
-		// msg := &Message{
-		// 	Type:    MessageError,
-		// 	RoomID:  p.RoomID,
-		// 	Content: "The game already ended",
-		// }
-		// p.Conn.WriteJSON(msg)
 		return nil, errors.New("game ended")
 	}
 
-	if p.Role == PlayerRoleX && room.Turn != TurnX {
-		// TODO: return html
-		// msg := &Message{
-		// 	Type:    MessageError,
-		// 	RoomID:  p.RoomID,
-		// 	Content: "Not your move",
-		// }
-		// p.Conn.WriteJSON(msg)
-		return nil, errors.New("not your move")
-	} else if p.Role == PlayerRoleO && room.Turn != TurnO {
-		// TODO: return html
-		// msg := &Message{
-		// 	Type:    MessageError,
-		// 	RoomID:  p.RoomID,
-		// 	Content: "Not your move",
-		// }
-		// p.Conn.WriteJSON(msg)
+	if p.Role != room.Turn {
 		return nil, errors.New("not your move")
 	}
 
 	if x < 0 || y < 0 || x > 2 || y > 2 {
-		// TODO: return html
-		// msg := &Message{
-		// 	Type:    MessageError,
-		// 	RoomID:  p.RoomID,
-		// 	Content: "Invalid move",
-		// }
-		// p.Conn.WriteJSON(msg)
 		return nil, errors.New("invalid move")
 	}
 
 	if room.Board[x][y] != "" {
-		// TODO: return html
-		// msg := &Message{
-		// 	Type:    MessageError,
-		// 	RoomID:  p.RoomID,
-		// 	Content: "Point already occupied",
-		// }
-		// p.Conn.WriteJSON(msg)
 		return nil, errors.New("already occupied")
 	}
 
@@ -253,8 +198,8 @@ func (p *Player) MakeMove(hub *Hub, x, y int) (*Player, error) {
 
 	winner := room.CheckWinner()
 	if winner != nil {
+		log.Printf("winner is %v", winner.GetRole())
 		room.Status = StatusEnded
 	}
-	fmt.Println(room.Board)
 	return winner, nil
 }

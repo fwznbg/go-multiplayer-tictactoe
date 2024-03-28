@@ -1,9 +1,5 @@
 package main
 
-type CreateRoomResponse struct {
-	Code string `json:"code"`
-}
-
 type HTMXRequestHeaders struct {
 	HXRequest     string `json:"HX-Request"`
 	HXTrigger     string `json:"HX-Trigger"`

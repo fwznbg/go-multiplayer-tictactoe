@@ -1,9 +1,10 @@
 package main
 
 import (
-	"context"
+	"fmt"
+	"log"
 
-	"github.com/fwznbg/go-multiplayer-tictactoe/components"
+	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
@@ -27,68 +28,66 @@ func (h *Hub) Run() {
 		select {
 		case player := <-h.Register:
 			if room, ok := h.Room[player.RoomID]; ok {
-				if room.PlayerX == nil {
-					player.Role = PlayerRoleX
-					room.PlayerX = player
-				} else if room.PlayerO == nil {
-					player.Role = PlayerRoleO
-					room.PlayerO = player
-				} else {
-					// TODO: change the broadcast to return html
-					// h.Broadcast <- &Message{
-					// 	Type:    MessageError,
-					// 	RoomID:  player.RoomID,
-					// 	Content: "Room is full",
-					// }
-				}
-				// TODO: change the broadcast to return html
-				// h.Broadcast <- &Message{
-				// 	Type:    MessageInfo,
-				// 	RoomID:  player.RoomID,
-				// 	Content: fmt.Sprintf("Player %s joined", player.GetRole()),
-				// }
-
 				if room.CheckIsFull() {
-					if room.Status == StatusWaiting {
-						room.Status = StatusPlaying
-					}
-					// roomJson, err := json.Marshal(room)
-					// if err != nil {
-					// 	log.Println("Failed to encode json ", err)
-					// 	return
-					// }
+					player.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("The room is already full", true))
+				} else {
+					if room.PlayerX == nil {
+						player.Role = PlayerRoleX
+						room.PlayerX = player
+						log.Println("registering x")
 
-					boardWriter := NewBytesWriter()
-					components.Board(room.Board).Render(context.Background(), boardWriter)
-					h.Broadcast <- &Message{
-						RoomID:  player.RoomID,
-						Content: boardWriter.Bytes(),
+						if room.PlayerO == nil {
+							player.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Waiting for player O", false))
+						}
+					} else if room.PlayerO == nil {
+						player.Role = PlayerRoleO
+						room.PlayerO = player
+						log.Println("registering o")
+
+						if room.PlayerX == nil {
+							player.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Waiting for player X", false))
+						}
 					}
 
-					// h.Broadcast <- &Message{
-					// 	Type:    MessageGameUpdate,
-					// 	RoomID:  player.RoomID,
-					// 	Content: string(roomJson),
-					// }
+					if room.CheckIsFull() {
+						if room.Status == StatusWaiting {
+							room.Status = StatusPlaying
+						}
+
+						for _, p := range []*Player{room.PlayerX, room.PlayerO} {
+							if room.Turn == p.Role {
+								p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Your turn", false))
+							} else {
+								p.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Enemy's turn", false))
+							}
+
+							p.Conn.WriteMessage(websocket.TextMessage, GetBoardComponent(room.Board, int(p.Role), int(room.Turn)))
+						}
+					}
 				}
 			}
 		case player := <-h.Unregister:
 			if room, ok := h.Room[player.RoomID]; ok {
-				if player.Role == PlayerRoleX {
-					room.PlayerX = nil
-				} else {
-					room.PlayerO = nil
-				}
-				if room.CheckIsEmpty() {
-					delete(h.Room, room.ID)
-				} else {
-					// TODO: change this to return html
-					// h.Broadcast <- &Message{
-					// 	Type:    MessageInfo,
-					// 	RoomID:  room.ID,
-					// 	Content: fmt.Sprintf("Player %s is leaving the room", player.GetRole()),
-					// }
-					room.Status = StatusWaiting
+				if player.Role != PlayerRoleUnassigned {
+					if player.Role == PlayerRoleX {
+						room.PlayerX = nil
+					} else {
+						room.PlayerO = nil
+					}
+					if room.CheckIsEmpty() {
+						delete(h.Room, room.ID)
+					} else {
+						h.Broadcast <- &Message{
+							RoomID:  player.RoomID,
+							Content: HideNotificationComponent(),
+						}
+
+						h.Broadcast <- &Message{
+							RoomID:  player.RoomID,
+							Content: GetNotificationComponent(fmt.Sprintf("Player %s is leaving, waiting them to join again", player.GetRole()), false),
+						}
+						room.Status = StatusWaiting
+					}
 				}
 
 				close(player.Message)

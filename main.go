@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -14,11 +14,21 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	components.Home().Render(context.Background(), w)
 }
 
-func roomHandler(w http.ResponseWriter, r *http.Request) {
+func roomHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomCode := vars["room"]
 
 	components.Room(roomCode).Render(context.Background(), w)
+
+	if len(roomCode) < 6 {
+		components.Notification("Invalid room id", true).Render(context.Background(), w)
+		return
+	}
+
+	if _, ok := hub.Room[roomCode]; !ok {
+		components.Notification("Room id not found", true).Render(context.Background(), w)
+		return
+	}
 }
 
 func createRoomHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
@@ -33,34 +43,12 @@ func createRoomHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := CreateRoomResponse{
-		Code: code,
-	}
-
-	jsonResp, err := json.Marshal(&resp)
-	if err != nil {
-		http.Error(w, "failed to encode json", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Add("Content-Type", "application/json")
-	w.Write(jsonResp)
+	w.Header().Add("HX-Redirect", fmt.Sprintf("/%s", code))
 }
 
 func startGameHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomCode := vars["room"]
-
-	if len(roomCode) < 6 {
-		http.Error(w, "invalid code", http.StatusNotFound)
-		return
-	}
-
-	if _, ok := hub.Room[roomCode]; !ok {
-		http.Error(w, "room not found", http.StatusNotFound)
-		return
-	}
-
 	HandleWs(roomCode, hub, w, r)
 }
 
@@ -73,11 +61,17 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", indexHandler).Methods("GET")
-	r.HandleFunc("/{room}", roomHandler).Methods("GET")
+	r.HandleFunc("/{room}", func(w http.ResponseWriter, r *http.Request) {
+		roomHandler(hub, w, r)
+	}).Methods("GET")
 
 	r.HandleFunc("/api/create-room", func(w http.ResponseWriter, r *http.Request) {
 		createRoomHandler(hub, w, r)
 	}).Methods("GET")
+	r.HandleFunc("/api/join", func(w http.ResponseWriter, r *http.Request) {
+		roomId := r.URL.Query().Get("roomId")
+		w.Header().Add("HX-Redirect", fmt.Sprintf("/%s", roomId))
+	})
 	r.HandleFunc("/api/{room}", func(w http.ResponseWriter, r *http.Request) {
 		startGameHandler(hub, w, r)
 	})

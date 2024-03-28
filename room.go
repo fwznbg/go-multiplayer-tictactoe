@@ -2,6 +2,8 @@ package main
 
 import (
 	"math/rand"
+
+	"github.com/gorilla/websocket"
 )
 
 type StatusType int
@@ -13,19 +15,14 @@ const (
 	StatusEnded
 )
 
-const (
-	TurnO TurnType = iota
-	TurnX
-)
-
 type GameRoom struct {
-	ID      string       `json:"id"`
-	PlayerX *Player      `json:"playerX"`
-	PlayerO *Player      `json:"playerO"`
-	Status  StatusType   `json:"status"`
-	Board   [3][3]string `json:"board"`
-	Turn    TurnType     `json:"turn"`
-	Winner  *Player      `json:"winner"`
+	ID      string         `json:"id"`
+	PlayerX *Player        `json:"playerX"`
+	PlayerO *Player        `json:"playerO"`
+	Status  StatusType     `json:"status"`
+	Board   [3][3]string   `json:"board"`
+	Turn    PlayerRoleType `json:"turn"`
+	Winner  *Player        `json:"winner"`
 }
 
 func NewRoom(roomId string) *GameRoom {
@@ -40,7 +37,7 @@ func NewRoom(roomId string) *GameRoom {
 		PlayerO: nil,
 		Status:  StatusWaiting,
 		Board:   board,
-		Turn:    TurnX,
+		Turn:    PlayerRoleX,
 		Winner:  nil,
 	}
 }
@@ -104,9 +101,15 @@ func (r GameRoom) CheckWinner() *Player {
 }
 
 func (r *GameRoom) SwitchTurn() {
-	if r.Turn == TurnX {
-		r.Turn = TurnO
+	if r.Turn == PlayerRoleX {
+		r.Turn = PlayerRoleO
+
+		r.PlayerO.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Your turn", false))
+		r.PlayerX.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Enemy's turn", false))
 	} else {
-		r.Turn = TurnX
+		r.Turn = PlayerRoleX
+
+		r.PlayerX.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Your turn", false))
+		r.PlayerO.Conn.WriteMessage(websocket.TextMessage, GetNotificationComponent("Enemy's turn", false))
 	}
 }

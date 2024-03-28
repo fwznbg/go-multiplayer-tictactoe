@@ -2,50 +2,41 @@ package components
 
 import "fmt"
 
-script gameplay(){
-//       const roomId = window.location.pathname;
-//       const socket = new WebSocket(`ws://localhost:8080/api${roomId}`);
-
-//       // const sendMove = (x, y) => {
-//       //   socket.send(JSON.stringify({ x: x, y: y }));
-//       // };
-
-//       socket.onmessage = (event) => {
-//         const data = JSON.parse(event.data);
-//         if (data.type === 0) {
-//           // console.log(data.content);
-//         } else if ([2, 3].includes(data.type)) {
-//           const gameState = JSON.parse(data.content);
-//           const board = gameState.board;
-//           let boardElem = "";
-
-
-//           document.getElementById("board").innerHTML = @board(board)
-// ;
-//         }
-//         if (data.type === 3) {
-//           // game ended
-//         }
-//         console.log(data);
-//       };
+func disabledTile(tile string, role, turn int) bool {
+  return tile != "" || role != turn
 }
 
-templ Board(board [3][3]string) {
-  <div id="board">  
-  for i:= range board {
-    <div class={"flex items-center justify-center text-gray-50", templ.KV("border-2", i!=1), templ.KV("border-x-2", i==1)}>
-    for j, tile := range board[i] {
-      <button ws-send name="move" value={fmt.Sprintf("%d;%d", i, j)} class={"bg-gray-800 w-16 h-16", templ.KV("border-x-2", j==1)} >{ tile }</button>
-    }
-    </div>
-  }
-  </div>
+templ Board(board [3][3]string, role, turn int) {
+	<div id="board">
+		for i:= range board {
+			<div class={ "flex items-center justify-center text-gray-50", templ.KV("border-2", i!=1), templ.KV("border-x-2", i==1) }>
+				for j, tile := range board[i] {
+					<button ws-send name="move" value={ fmt.Sprintf("%d;%d", i, j) } disabled?={disabledTile(tile, role, turn)} class={ "bg-gray-800 w-32 h-32 text-xl font-bold", templ.KV("border-x-2", j==1), templ.KV("hover:bg-red-400", disabledTile(tile, role, turn)) }>{ tile }</button>
+				}
+			</div>
+		}
+	</div>
 }
 
-templ Room(roomId string){
-    @Layout(gameplay()){
-    <main hx-ext="ws" ws-connect={fmt.Sprintf("/api/%s", roomId)}>
-      <div id="board"></div>
-    </main>
-    }
+templ Notification(message string, isError bool) {
+	<div id="notification">
+		<p class={ templ.KV("text-gray-50", !isError), templ.KV("text-red-400", isError) }>{ message }</p>
+	</div>
+}
+
+templ HideNotification() {
+	<div id="notification" class="hidden"></div>
+}
+
+templ HideBoard() {
+	<div id="board" class="hidden"></div>
+}
+
+templ Room(roomId string) {
+	@Layout() {
+		<main hx-ext="ws" ws-connect={ fmt.Sprintf("/api/%s", roomId) } class="flex flex-col items-center justify-center space-y-6">
+			<div id="board" class="hidden"></div>
+			<div id="notification" class="hidden"></div>
+		</main>
+	}
 }
